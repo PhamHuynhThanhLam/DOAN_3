@@ -9,10 +9,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer  
 
 # In[1]: Xem nhanh dữ liệu 
-read_data=pd.read_csv(r"C:\CNTT_Namw4_kỳ1\DOAN3\dulieu.csv")
+read_data=pd.read_csv(r"C:\CNTT_Namw4_kỳ1\DOAN3\DULIEU\dulieu.csv")
 print("Done.")
 
 
@@ -45,7 +45,6 @@ def clean_text(text):
     # convert text to lowercase 
     text = text.lower()    
     text = re.findall(r'(?i)\b[a-záàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệóòỏõọôốồổỗộơớờởỡợíìỉĩịúùủũụưứừửữựýỳỷỹỵđ]+\b', text)
-
     return text
 
 read_data['keyword'] = read_data['Mô tả'].apply(lambda x: clean_text(x))
@@ -137,13 +136,13 @@ plt.title('Most visited nhà trọ')
 plt.show()
 
 
-# In[4]: Tìm key word 
+# In[4]: Tìm vị trí
 def recommend_venues(df, longitude, latitude):
     array = []
     predicted_cluster = kmeans.predict(np.array([longitude,latitude]).reshape(1,-1))[0]
     # Fetch the venue name of the top most record in the topvenues dataframe for the predicted cluster
     #venue_name = df[df['cluster']==predicted_cluster].iloc[0]['Tiêu đề tin']
-    print(predicted_cluster)
+    #print(predicted_csluster)
     for i in range(0, len(df[df['cluster']==predicted_cluster])-1, 1):
         array.append(df[df['cluster']==predicted_cluster].iloc[i]['Tiêu đề tin'])
     #msg = 'What about visiting the ' + venue_name + '?'
@@ -151,7 +150,7 @@ def recommend_venues(df, longitude, latitude):
     return array
 
 
-
+# In[5]: Tìm key word
 indices = pd.Series(read_data['Tiêu đề tin'])
 def recommend(title, cosine_sim = cosine_sim):
     recommended_nhatrokeyword = []
@@ -167,13 +166,65 @@ def recommend(title, cosine_sim = cosine_sim):
 
 for i in recommend_venues(topvenues_df, 10.809097, 106.672583):
     print(i)
-for i in recommend('CH Orchard Park View 95m² 3PN FUll NT cao cấp'):
+for i in recommend("Cho thuê căn hộ 1pn riêng full nội thất, Quận 2"):
     print(i)
 
-temp = " "
-for i in recommend_venues(topvenues_df, 10.809097, 106.672583):
-    for j in recommend('CH Orchard Park View 95m² 3PN FUll NT cao cấp'):
-        if i == j and temp == " " :
-            temp = j;
-            print(i)
-            
+#temp = " "
+#for i in recommend_venues(topvenues_df, 10.809097, 106.672583):
+#    for j in recommend('CH Orchard Park View 95m² 3PN FUll NT cao cấp'):
+#        if i == j and temp == " " :
+#            temp = j;
+#            print(i)
+    
+# In[6]: Test data
+test_data =pd.read_csv(r"C:\CNTT_Namw4_kỳ1\DOAN3\DULIEU\dulieutest.csv")
+print("Done.")
+
+test_data['Vĩ độ'] = test_data['Vĩ độ'].apply(lambda x: clean(x))
+test_data['Kinh độ'] = test_data['Kinh độ'].apply(lambda x: clean(x))
+
+
+print('\n____________________________________ Dataset info ____________________________________')
+print(test_data.info())              
+print('\n____________________________________ Some first data examples ____________________________________')
+print(test_data.head(6)) 
+print('\n____________________________________ Statistics of numeric features ____________________________________')
+print(test_data.describe()) 
+
+# Tính khoảng cách
+import math
+from math import pi
+def getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2):
+  R = 6371; 
+  dLat = deg2rad(lat2-lat1); 
+  dLon = deg2rad(lon2-lon1); 
+  a = math.sin(dLat/2) * math.sin(dLat/2) + math.cos(deg2rad(lat1)) * math.cos(deg2rad(lat2)) * math.sin(dLon/2) * math.sin(dLon/2); 
+  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)); 
+  d = R * c;
+  return d;
+
+def deg2rad(deg) :
+  return deg * (pi/180)
+
+row_count = len(test_data.axes[0]) # count row
+row_count_train = len(read_data.axes[0])
+for numberrow in range(0, row_count , 1):
+    print("Query {}".format(numberrow));
+    arraydudoan = recommend_venues(topvenues_df, test_data['Kinh độ'][numberrow], test_data['Vĩ độ'][numberrow])
+    for i in range(0, row_count_train , 1):
+        for j in arraydudoan:
+            if(read_data['Tiêu đề tin'][i] == j):              
+                khoangcach = 0; 
+                khoangcach = getDistanceFromLatLonInKm(test_data['Kinh độ'][numberrow],test_data['Vĩ độ'][numberrow],read_data['Kinh độ'][i],read_data['Vĩ độ'][i])
+                print("{} {}".format(j,khoangcach ))
+
+
+indices = pd.Series(test_data['Tiêu đề tin'])
+for numberrow in range(0, row_count , 1):
+    print("Query {} {} ".format(numberrow, test_data['Tiêu đề tin'][numberrow]));
+    for i in recommend(test_data['Tiêu đề tin'][numberrow]):
+        print("{}".format(i))
+    print("\n")
+
+
+
