@@ -10,30 +10,39 @@ import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer  
+from sklearn.naive_bayes import BernoulliNB
 
 # In[1]: Xem nhanh dữ liệu 
-read_data=pd.read_csv(r"C:\CNTT_Namw4_kỳ1\DOAN3\DULIEU\dulieu.csv")
-print("Done.")
+motels = pd.read_csv(r"D:\HK1-2020-2021\Đồ án 3\DULIEU\dulieu.csv")
+moteltest = pd.read_csv(r"D:\HK1-2020-2021\Đồ án 3\DULIEU\dulieutest.csv")
+## ĐỔI DType of GIÁ thành float  
+#def clean1(text):
+#    text = text.replace(",", ".") 
+#    return float(text)
+#motels['Giá'] = motels['Giá'].apply(lambda x: clean1(x))
+#motels['Giá'] = motels['Giá'].astype('float')
+#print("Done.")
 
-
+# Chuyển data số khoảng cách
 def clean(text):
     text = text.replace(";", ".") 
     return float(text)
-read_data['Vĩ độ'] = read_data['Vĩ độ'].apply(lambda x: clean(x))
-read_data['Kinh độ'] = read_data['Kinh độ'].apply(lambda x: clean(x))
+motels['Vĩ độ'] = motels['Vĩ độ'].apply(lambda x: clean(x))
+motels['Kinh độ'] = motels['Kinh độ'].apply(lambda x: clean(x))
 
+moteltest['Vĩ độ'] = moteltest['Vĩ độ'].apply(lambda x: clean(x))
+moteltest['Kinh độ'] = moteltest['Kinh độ'].apply(lambda x: clean(x))
 
+# In[2]: Load data training set
 print('\n____________________________________ Dataset info ____________________________________')
-print(read_data.info())              
+print(motels.info())              
 print('\n____________________________________ Some first data examples ____________________________________')
-print(read_data.head(6)) 
+print(motels.head(6)) 
 print('\n____________________________________ Statistics of numeric features ____________________________________')
-print(read_data.describe())    
+print(motels.describe())    
+ 
 
-
-
-# In[2]: Tìm key word 
-
+# In[3]: Tách nội dung thành cách từ kháo keyword
 # function for text cleaning 
 def clean_text(text):
     # remove backslash-apostrophe 
@@ -46,11 +55,11 @@ def clean_text(text):
     text = text.lower()    
     text = re.findall(r'(?i)\b[a-záàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệóòỏõọôốồổỗộơớờởỡợíìỉĩịúùủũụưứừửữựýỳỷỹỵđ]+\b', text)
     return text
+motels['merger table'] = motels['Tiêu đề tin']+' '+motels['Mô tả']
+motels['keyword'] = motels['merger table'].apply(lambda x: clean_text(x))
+moteltest['keyword'] = (motels['Tiêu đề tin']+' '+motels['Mô tả']).apply(lambda x: clean_text(x))
 
-read_data['keyword'] = read_data['Mô tả'].apply(lambda x: clean_text(x))
-
-
-
+# Dùng stopword xóa các từ ảnh hưởng và không liên quan
 def freq_words(x, terms = 30): 
   #all_words = ' '.join([text for text in x]) 
   all_words = ' '.join(str(text) for text in x)
@@ -67,8 +76,8 @@ def freq_words(x, terms = 30):
   ax.set(ylabel = 'Word') 
   plt.show()
   
-# in ra màn hình 30 dữ liệu nhiều nhất 
-freq_words(read_data['keyword'], 30)
+# In ra màn hình 30 dữ liệu nhiều nhất 
+freq_words(motels['keyword'], 30)
 
 # Đã download
 # nltk.download('stopwords')
@@ -80,151 +89,95 @@ def remove_stopwords(text):
     no_stopword_text = [w for w in str(text).split() if not w in stop_words]
     return ' '.join(no_stopword_text)
 
-read_data['keyword'] = read_data['keyword'].apply(lambda x: remove_stopwords(x))
-freq_words(read_data['keyword'], 30)
-
+motels['keyword'] = motels['keyword'].apply(lambda x: remove_stopwords(x))
+freq_words(motels['keyword'], 30)
+moteltest['keyword'] = moteltest['keyword'].apply(lambda x: remove_stopwords(x))
 
 count = CountVectorizer()
-count_matrix = count.fit_transform(read_data['keyword'])
-cosine_sim = cosine_similarity(count_matrix, count_matrix)
-print(cosine_sim)
+count_matrix = count.fit_transform(motels['keyword'])
+count_matrix_test = count.fit_transform(moteltest['keyword'])
+
+# Đánh số label
+# Training
+train_data = count_matrix.toarray()
+label = np.random.randint(5, size=(1000))
+
+# Call MultinomialNB
+clf = BernoulliNB()
+clf.fit(train_data, label)
+array = clf.predict(train_data)
+motels['labelrank'] = pd.DataFrame(array, columns=['labelrank'])
+
+# In[4]: Similarity between motels
+from scipy import spatial
+
+def Similarity(motelid1, motelid2):
+    wordsA = count_matrix.toarray()[motelid1]
+    wordsB = count_matrix.toarray()[motelid2]
+    wordsDistance = spatial.distance.cosine(wordsA, wordsB)
+    return wordsDistance
+
+Similarity(7,100)
+
+print(motels.iloc[7])
+print(motels.iloc[100])
 
 
-# In[3]: Tìm key location 
-lon_min, lat_min, lon_max, lat_max = 10.01899606, 105.4282622 , 21.44498123, 109.2042187
-nyc_events = read_data[(read_data['Kinh độ']>lon_min) & 
-           (read_data['Kinh độ']<lon_max) & 
-           (read_data['Vĩ độ']>lat_min) & 
-           (read_data['Vĩ độ']<lat_max)]
-nyc_events.head()
-nyc_events.shape
-
-
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-#kmeans = KMeans(n_clusters=70, init='k-means++')
-## Compute the clusters based on longitude and latitude features
-#X_sample = nyc_events[['Kinh độ','Vĩ độ']].sample(frac=0.1)
-#kmeans.fit(X_sample)
-#y = kmeans.labels_
-#print("k = 70", " silhouette_score ", silhouette_score(X_sample, y, metric='euclidean'))
-
-for k in range(20, 27, 10):
-    kmeans = KMeans(n_clusters=k, init='k-means++')
-    X_sample = (nyc_events[['Kinh độ','Vĩ độ']].sample(frac=0.1))
-    kmeans.fit(X_sample)
-    y = kmeans.labels_
-    print("k =", k, " silhouette_score ", silhouette_score(X_sample, y, metric='euclidean'))
-
-nyc_events['cluster'] = kmeans.predict(nyc_events[['Kinh độ','Vĩ độ']])
-nyc_events[['Vĩ độ','Kinh độ','Tiêu đề tin','cluster']].sample(10)
-
-gdf = nyc_events.groupby(['cluster', 'Tiêu đề tin']).size().reset_index()
-gdf.columns = ['cluster', 'Tiêu đề tin', 'count']
-idx = gdf.groupby(['cluster'])['count'].transform(max) == gdf['count']
-topvenues_df = gdf[idx].sort_values(by='count', ascending=False)
-#top 10 out of 200 clusters by events count
-topvenues = topvenues_df[:20]
-
-plt.style.use('ggplot')
-fig = plt.figure()
-fig.set_size_inches(21,5)
-
-plt.bar(range(len(topvenues)),topvenues['Tiêu đề tin'], align='center')
-plt.xticks(range(len(topvenues)), topvenues['count'])
-plt.title('Most visited nhà trọ')
-plt.show()
-
-
-# In[4]: Tìm vị trí
-def recommend_venues(df, longitude, latitude):
-    array = []
-    predicted_cluster = kmeans.predict(np.array([longitude,latitude]).reshape(1,-1))[0]
-    # Fetch the venue name of the top most record in the topvenues dataframe for the predicted cluster
-    #venue_name = df[df['cluster']==predicted_cluster].iloc[0]['Tiêu đề tin']
-    #print(predicted_csluster)
-    for i in range(0, len(df[df['cluster']==predicted_cluster])-1, 1):
-        array.append(df[df['cluster']==predicted_cluster].iloc[i]['Tiêu đề tin'])
-    #msg = 'What about visiting the ' + venue_name + '?'
-    #return msg
-    return array
-
-
-# In[5]: Tìm key word
-indices = pd.Series(read_data['Tiêu đề tin'])
-def recommend(title, cosine_sim = cosine_sim):
-    recommended_nhatrokeyword = []
-    idx = indices[indices == title].index[0]
-    score_series = pd.Series(cosine_sim[idx]).sort_values(ascending = False)
-    top_10_indices = list(score_series.iloc[1:11].index)
+# In[5]: Score Predictor
+import operator
+def predict_score(title, id):
+    #name = input('Nhập title của nhà trọ: ')
+    #title = "THIẾT KẾ MỚI - NỘI THẤT ĐẸP - 2PN 65m2 - SAFIRA Q9"
+    name = title; 
+    try:
+        new_motel = motels[motels['Tiêu đề tin'].str.contains(name)].iloc[0].to_frame().T
     
-    for i in top_10_indices:
-        recommended_nhatrokeyword.append(list(read_data['Tiêu đề tin'])[i])
-        
-    return recommended_nhatrokeyword
-
-
-for i in recommend_venues(topvenues_df, 10.809097, 106.672583):
-    print(i)
-for i in recommend("Cho thuê căn hộ 1pn riêng full nội thất, Quận 2"):
-    print(i)
-
-#temp = " "
-#for i in recommend_venues(topvenues_df, 10.809097, 106.672583):
-#    for j in recommend('CH Orchard Park View 95m² 3PN FUll NT cao cấp'):
-#        if i == j and temp == " " :
-#            temp = j;
-#            print(i)
+        original_title = 'Tiêu đề tin';
+        print('Selected Movie: ',new_motel['Tiêu đề tin'].values[0])
+        array = np.array([count_matrix_test.toarray()[id]])
+        print('Label key: ',clf.predict(array))
+        def getNeighbors(baseMovie, K):
+            distances = []
     
-# In[6]: Test data
-test_data =pd.read_csv(r"C:\CNTT_Namw4_kỳ1\DOAN3\DULIEU\dulieutest.csv")
-print("Done.")
+            for index, motel in motels.iterrows():
+                if motel['STT'] != baseMovie['STT'].values[0]:
+                    dist = Similarity(baseMovie['STT'].values[0], motel['STT'] - 1)
+                    distances.append((motel['STT'], dist))
+    
+            distances.sort(key=operator.itemgetter(1))
+            neighbors = []
+    
+            for x in range(K):
+                neighbors.append(distances[x])
+            return neighbors
 
-test_data['Vĩ độ'] = test_data['Vĩ độ'].apply(lambda x: clean(x))
-test_data['Kinh độ'] = test_data['Kinh độ'].apply(lambda x: clean(x))
 
+        # Lấy 10 motel
+        K = 10
+        labelkey = 0
+        neighbors = getNeighbors(new_motel, K)
+        print('\nRecommended Movies: \n')
+        for neighbor in neighbors:
+            labelkey = labelkey + motels.iloc[neighbor[0]][16]
+            print("{} ,Similarity = {} ,labelrank = {}".format(motels.iloc[neighbor[0]][1], neighbor[1], motels.iloc[neighbor[0]][16]))
+    
+        print('\n')
 
-print('\n____________________________________ Dataset info ____________________________________')
-print(test_data.info())              
-print('\n____________________________________ Some first data examples ____________________________________')
-print(test_data.head(6)) 
-print('\n____________________________________ Statistics of numeric features ____________________________________')
-print(test_data.describe()) 
+        labelkey = labelkey/K
+        print('The predicted for %s là: %f' %(new_motel['Tiêu đề tin'].values[0],labelkey))
+        print('The actual for %s là %f' %(new_motel['Tiêu đề tin'].values[0],new_motel['labelrank']))
+        mse = float(new_motel['labelrank'].values[0])/labelkey
+        rmse = np.sqrt(mse)
+        print('MSE = {}'.format(mse))
+        print('RMSE = {}'.format(rmse))
+    except:
+        print("Không tìm thể tìm thấy")
+    
+  
 
-# Tính khoảng cách
-import math
-from math import pi
-def getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2):
-  R = 6371; 
-  dLat = deg2rad(lat2-lat1); 
-  dLon = deg2rad(lon2-lon1); 
-  a = math.sin(dLat/2) * math.sin(dLat/2) + math.cos(deg2rad(lat1)) * math.cos(deg2rad(lat2)) * math.sin(dLon/2) * math.sin(dLon/2); 
-  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)); 
-  d = R * c;
-  return d;
-
-def deg2rad(deg) :
-  return deg * (pi/180)
-
-row_count = len(test_data.axes[0]) # count row
-row_count_train = len(read_data.axes[0])
-for numberrow in range(0, row_count , 1):
+# In[6]: 1000 query
+row_count = len(moteltest.axes[0]) # count row
+for numberrow in range(0, 2 , 1):
     print("Query {}".format(numberrow));
-    arraydudoan = recommend_venues(topvenues_df, test_data['Kinh độ'][numberrow], test_data['Vĩ độ'][numberrow])
-    for i in range(0, row_count_train , 1):
-        for j in arraydudoan:
-            if(read_data['Tiêu đề tin'][i] == j):              
-                khoangcach = 0; 
-                khoangcach = getDistanceFromLatLonInKm(test_data['Kinh độ'][numberrow],test_data['Vĩ độ'][numberrow],read_data['Kinh độ'][i],read_data['Vĩ độ'][i])
-                print("{} {}".format(j,khoangcach ))
-
-
-indices = pd.Series(test_data['Tiêu đề tin'])
-for numberrow in range(0, row_count , 1):
-    print("Query {} {} ".format(numberrow, test_data['Tiêu đề tin'][numberrow]));
-    for i in recommend(test_data['Tiêu đề tin'][numberrow]):
-        print("{}".format(i))
-    print("\n")
-
-
-
+    predict_score(moteltest['Tiêu đề tin'][numberrow],moteltest['STT'][numberrow]);
+    print("/n")
